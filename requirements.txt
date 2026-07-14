@@ -1,0 +1,7 @@
+torch>=2.1
+torchvision>=0.16
+ultralytics>=8.2
+opencv-python-headless
+numpy
+pyyaml
+tqdm

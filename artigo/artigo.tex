@@ -1,0 +1,205 @@
+\documentclass[12pt]{sbc-template}
+
+\usepackage{graphicx,url}
+\usepackage[brazil]{babel}
+\usepackage[utf8]{inputenc}
+
+\sloppy
+
+\title{Segmentação de Instância de Animais de Estimação com YOLOv8: um Estudo de Caso no Dataset Oxford-IIIT Pet}
+
+\author{Katelyn Moura, Diego Rodrigues, Idelmar Júnior,\\ Renan Costa, Thiago Novaes}
+
+\address{Curso Técnico/Superior em Informática -- Instituto Federal do Piauí (IFPI)\\
+  Campus Picos -- Picos, PI -- Brasil
+  \email{\{katelyn.moura,diego.rodrigues,idelmar.junior,renan.costa,thiago.novaes\}@aluno.ifpi.edu.br}
+}
+
+\begin{document}
+
+\maketitle
+
+\begin{resumo}
+  A segmentação é uma das tarefas fundamentais da visão computacional, permitindo a
+  classificação de imagens no nível de pixel. Este trabalho apresenta a aplicação da
+  arquitetura YOLOv8-seg para a tarefa de segmentação de instância de animais de
+  estimação (cães e gatos), utilizando o dataset público Oxford-IIIT Pet. Como o dataset
+  original disponibiliza apenas máscaras densas (\textit{trimaps}), foi desenvolvido um
+  pipeline de conversão para o formato de polígonos exigido pela arquitetura. O modelo foi
+  treinado por \textit{transfer learning} a partir de pesos pré-treinados no COCO, e avaliado
+  por métricas de \textit{mean Average Precision} (mAP) de máscara. Os resultados demonstram
+  [preencher após o treinamento], evidenciando a viabilidade do uso de arquiteturas de
+  detecção com cabeça de segmentação para problemas de granularidade fina com poucos
+  recursos computacionais.
+\end{resumo}
+
+\begin{abstract}
+  Segmentation is one of the fundamental tasks in computer vision, enabling pixel-level
+  image classification. This work presents the application of the YOLOv8-seg architecture
+  to the instance segmentation of pets (cats and dogs), using the public Oxford-IIIT Pet
+  dataset. Since the original dataset only provides dense masks (trimaps), a conversion
+  pipeline was developed to produce the polygon format required by the architecture. The
+  model was trained via transfer learning from COCO-pretrained weights and evaluated using
+  mask mean Average Precision (mAP) metrics. Results show [to be filled in after training],
+  demonstrating the feasibility of using detection architectures with a segmentation head
+  for fine-grained problems under limited computational resources.
+\end{abstract}
+
+
+\section{Introdução}
+
+A visão computacional compreende um conjunto de tarefas voltadas à extração de informação
+semântica a partir de imagens digitais, das quais três são consideradas fundamentais:
+classificação, detecção de objetos e segmentação. Enquanto a classificação indica \textit{o
+que} está presente em uma imagem e a detecção localiza objetos por meio de caixas
+delimitadoras, a segmentação é a tarefa mais granular, atribuindo uma classe a \textbf{cada
+pixel} da imagem \cite{ronneberger2015unet}. Dentro da segmentação, distingue-se ainda a
+segmentação semântica, que rotula pixels por classe sem diferenciar objetos individuais, da
+segmentação de instância, que além de classificar também separa cada ocorrência de um
+objeto com sua própria máscara.
+
+Aplicações de segmentação são numerosas: em imagens médicas, permite delimitar órgãos e
+lesões; em veículos autônomos, permite distinguir via, calçada e pedestres; em edição de
+imagem, permite o recorte automático de objetos do fundo. Este trabalho tem como objetivo
+aplicar uma arquitetura de segmentação de instância a um problema de domínio simples e bem
+documentado -- a segmentação de animais de estimação em fotografias -- de modo a explorar,
+na prática, todo o pipeline de um projeto de \textit{deep learning}: preparação de dados,
+treinamento por \textit{transfer learning}, avaliação quantitativa e análise qualitativa dos
+resultados.
+
+O restante deste artigo está organizado da seguinte forma: a Seção~\ref{sec:teoria} apresenta
+a fundamentação teórica sobre segmentação e a arquitetura utilizada; a
+Seção~\ref{sec:metodologia} descreve o dataset, o pipeline de preparação dos dados e os
+detalhes de treinamento; a Seção~\ref{sec:resultados} apresenta e discute os resultados
+obtidos; e a Seção~\ref{sec:conclusao} conclui o trabalho e aponta direções futuras.
+
+
+\section{Fundamentação Teórica}
+\label{sec:teoria}
+
+\subsection{Segmentação semântica e de instância}
+
+Redes convolucionais do tipo \textit{encoder-decoder}, como a U-Net \cite{ronneberger2015unet},
+consolidaram-se como abordagem clássica para segmentação semântica: um caminho de
+contração (\textit{encoder}) extrai características em múltiplas escalas, enquanto um
+caminho de expansão (\textit{decoder}) reconstrói a resolução espacial original, auxiliado
+por conexões de salto (\textit{skip connections}) que preservam detalhes finos. Essa
+abordagem, no entanto, não distingue instâncias individuais de uma mesma classe quando há
+múltiplos objetos sobrepostos ou próximos na imagem.
+
+\subsection{A família YOLO e o YOLOv8-seg}
+
+A família YOLO (\textit{You Only Look Once}) \cite{redmon2016yolo} popularizou a detecção de
+objetos em estágio único (\textit{single-stage}), predizendo simultaneamente, em uma única
+passagem pela rede, as caixas delimitadoras, as classes e as confianças de todos os objetos
+de uma imagem -- em contraste com abordagens de dois estágios, mais precisas porém mais
+lentas. Versões mais recentes da arquitetura, mantidas pela Ultralytics
+\cite{ultralytics2023yolov8}, estendem esse princípio à segmentação de instância
+(\textit{YOLOv8-seg}): além da caixa e da classe, a rede prediz coeficientes que combinam
+protótipos de máscara compartilhados, gerando uma máscara de pixels específica para cada
+instância detectada, mantendo a eficiência computacional característica da família.
+
+
+\section{Metodologia}
+\label{sec:metodologia}
+
+\subsection{Dataset}
+
+Foi utilizado o \textit{Oxford-IIIT Pet Dataset} \cite{parkhi2012cats}, composto por 7.349
+imagens de 37 raças de cães e gatos, cada uma acompanhada de uma máscara de segmentação em
+formato \textit{trimap}, na qual cada pixel é rotulado como pertencente ao animal (pet), ao
+fundo, ou à borda de contorno entre ambos. O dataset é distribuído publicamente e possui
+divisão oficial entre um conjunto de treino/validação e um conjunto de teste.
+
+\subsection{Conversão de máscaras para polígonos}
+
+Como o YOLOv8-seg espera anotações no formato de polígono normalizado (e não máscaras
+densas), foi implementado um pipeline de conversão: para cada imagem, os pixels rotulados
+como pet ou borda no trimap foram unidos em uma máscara binária de primeiro plano; em
+seguida, o contorno externo dessa máscara foi extraído com o algoritmo de
+Suzuki e Abe \cite{suzuki1985contours}, implementado na biblioteca OpenCV
+(\texttt{cv2.findContours}), e normalizado pelas dimensões da imagem para gerar o rótulo no
+formato exigido pela arquitetura, com uma única classe (\textit{pet}). O conjunto de
+treino/validação original foi então subdividido em treino (85\%) e validação (15\%),
+mantendo o conjunto de teste oficial intacto para a avaliação final.
+
+\subsection{Arquitetura e treinamento}
+
+Foi utilizado o modelo \textit{YOLOv8n-seg}, a variante mais leve da família, com pesos
+pré-treinados no conjunto de dados COCO \cite{lin2014coco}, adaptados ao problema por
+\textit{transfer learning}. O treinamento foi conduzido com [\textit{X}] épocas, tamanho de
+\textit{batch} de 16 imagens e resolução de entrada de $640\times640$ pixels, utilizando os
+hiperparâmetros padrão da biblioteca \texttt{ultralytics} (otimizador SGD/Adam com
+\textit{learning rate} adaptativo e função de perda combinada de caixa, classe e máscara). O
+treinamento foi executado em ambiente Google Colab, com GPU gratuita (NVIDIA T4).
+
+\subsection{Métricas de avaliação}
+
+O desempenho do modelo foi avaliado no conjunto de teste por meio de métricas padrão de
+detecção/segmentação: \textit{mean Average Precision} com limiar de sobreposição de máscara
+de 0,5 (mAP50) e a média entre os limiares de 0,5 a 0,95 (mAP50-95), além de precisão e
+\textit{recall}.
+
+
+\section{Resultados e Discussão}
+\label{sec:resultados}
+
+A Tabela~\ref{tab:resultados} apresenta as métricas obtidas no conjunto de teste após o
+treinamento do modelo.
+
+\begin{table}[h]
+\centering
+\caption{Resultados no conjunto de teste}
+\label{tab:resultados}
+\begin{tabular}{lc}
+\hline
+\textbf{Métrica} & \textbf{Valor} \\
+\hline
+mAP50 (máscara)     & [preencher] \\
+mAP50-95 (máscara)  & [preencher] \\
+Precisão            & [preencher] \\
+Recall               & [preencher] \\
+\hline
+\end{tabular}
+\end{table}
+
+% Figura de exemplo: adicionar após gerar as amostras com `src/predict.py`
+% \begin{figure}[h]
+%   \centering
+%   \includegraphics[width=.8\textwidth]{figuras/exemplo_predicao.png}
+%   \caption{Exemplo de predição: imagem original, máscara prevista e sobreposição.}
+%   \label{fig:exemplo}
+% \end{figure}
+
+[Discussão a preencher: comparar os resultados quantitativos com o esperado, comentar
+qualitativamente os acertos e erros observados nas Figuras~\ref{fig:exemplo}, e discutir as
+principais dificuldades do desenvolvimento (dados, hardware, hiperparâmetros).]
+
+Uma limitação observada é que o Oxford-IIIT Pet contém, em sua grande maioria, uma única
+instância de animal por imagem, o que reduz a vantagem prática da segmentação de instância
+sobre uma abordagem puramente semântica -- ponto relevante para trabalhos futuros que
+explorem datasets com múltiplos animais por cena.
+
+
+\section{Conclusão}
+\label{sec:conclusao}
+
+Este trabalho apresentou a aplicação da arquitetura YOLOv8-seg à tarefa de segmentação de
+instância de animais de estimação, cobrindo todo o pipeline de um projeto de \textit{deep
+learning}: desde a conversão de anotações do formato original do dataset para o formato
+exigido pela arquitetura, passando pelo treinamento por \textit{transfer learning}, até a
+avaliação quantitativa e qualitativa dos resultados. [Concluir com uma síntese dos principais
+achados após a análise dos resultados.]
+
+Como trabalhos futuros, sugere-se: (i) a comparação com arquiteturas de segmentação semântica
+pura, como a U-Net, sob as mesmas condições experimentais; (ii) a avaliação em datasets com
+múltiplas instâncias por imagem, de modo a explorar melhor a capacidade de segmentação de
+instância do YOLOv8-seg; e (iii) a análise do custo-benefício entre variantes do modelo
+(\textit{nano}, \textit{small}, \textit{medium}) em termos de acurácia \textit{versus} tempo
+de inferência.
+
+
+\bibliographystyle{sbc}
+\bibliography{referencias}
+
+\end{document}
