@@ -17,6 +17,8 @@ def parse_args():
     parser.add_argument("--epochs", type=int, default=30)
     parser.add_argument("--imgsz", type=int, default=640)
     parser.add_argument("--batch", type=int, default=16)
+    parser.add_argument("--patience", type=int, default=15,
+                        help="Épocas sem melhora antes do early stopping.")
     parser.add_argument("--project", default="outputs/runs")
     parser.add_argument("--name", default="train")
     return parser.parse_args()
@@ -30,6 +32,7 @@ def main():
         epochs=args.epochs,
         imgsz=args.imgsz,
         batch=args.batch,
+        patience=args.patience,
         project=args.project,
         name=args.name,
     )

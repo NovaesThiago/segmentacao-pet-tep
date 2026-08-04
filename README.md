@@ -1,114 +1,120 @@
-# Segmentação de Instância de Pets com YOLOv8-seg
+# Segmentação de instância de pets com YOLOv8-seg
 
 **Trabalho Final — Tópicos Especiais em Programação (TEC.1053)**
 Instituto Federal do Piauí — Campus Picos · Prof. Daniel de Sousa Luz
 
-**Grupo 1 — Tema: Segmentação**
-Katelyn Moura, Diego Rodrigues, Idelmar Júnior, Renan Costa, Thiago Novaes
+**Grupo 1 — Segmentação:** Katelyn Moura, Diego Rodrigues, Idelmar Júnior, Renan Costa e Thiago Novaes.
 
----
+## Sobre o projeto
 
-## 1. Contextualização
+Este projeto treina um modelo de visão computacional para localizar cães e gatos e produzir uma máscara para cada animal encontrado. Diferentemente da classificação, que informa apenas o conteúdo da imagem, e da detecção, que retorna caixas delimitadoras, a segmentação de instância identifica os pixels de cada objeto individualmente.
 
-Segmentação é a tarefa de visão computacional que classifica **cada pixel** de uma imagem,
-indo além da classificação (que só diz "o que" aparece) e da detecção (que só diz "onde", com
-uma caixa delimitadora). Na **segmentação de instância**, além de identificar as classes,
-o modelo distingue **cada objeto individualmente** com sua própria máscara — diferente da
-segmentação semântica, que só rotula classes sem separar instâncias.
+O pipeline foi construído a partir do experimento registrado no notebook do grupo e organizado em scripts reproduzíveis para preparação dos dados, treino, avaliação e análise qualitativa.
 
-Neste projeto, treinamos um modelo para detectar e segmentar **pets** (cães e gatos) em
-fotos, gerando a máscara de pixels exata de cada animal encontrado na imagem.
+## Metodologia
 
-## 2. Metodologia
+- **Dataset:** [Oxford-IIIT Pet](https://www.robots.ox.ac.uk/~vgg/data/pets/), com 7.349 imagens de 37 raças e máscaras do tipo *trimap*.
+- **Preparação:** os pixels de pet e borda do trimap formam uma máscara binária. O maior contorno externo é convertido para coordenadas normalizadas no formato YOLO-seg.
+- **Divisão dos dados:** 3.128 imagens de treino e 552 de validação, obtidas do split `trainval` com semente 42, além das 3.669 imagens do split oficial de teste.
+- **Modelo:** YOLOv8n-seg pré-treinado no COCO, usando *transfer learning*.
+- **Treino:** 30 épocas, imagens de 640 × 640, lote 16 e *early stopping* com `patience=15`.
+- **Avaliação:** precisão, recall, mAP50 e mAP50-95 para caixas e máscaras.
 
-- **Dataset:** [Oxford-IIIT Pet Dataset](https://www.robots.ox.ac.uk/~vgg/data/pets/) — 7.349
-  imagens de 37 raças, cada uma com uma máscara de segmentação (*trimap*: pet / fundo / borda)
-  baixada automaticamente pelo `torchvision`. Como o YOLOv8-seg espera rótulos em **polígonos**
-  (não máscaras densas), o script [`src/prepare_dataset.py`](src/prepare_dataset.py) converte
-  cada trimap em um contorno (via `cv2.findContours`) e exporta no formato YOLO-seg
-  (`images/` + `labels/*.txt` com uma classe: `pet`).
-- **Arquitetura:** **YOLOv8n-seg**, da biblioteca [`ultralytics`](https://docs.ultralytics.com/tasks/segment/) —
-  uma rede *single-stage* que prediz simultaneamente caixas delimitadoras, classes e um
-  protótipo de máscara por instância, combinados por coeficientes preditos para cada detecção.
-  Partimos do checkpoint `yolov8n-seg.pt` pré-treinado no COCO (transfer learning), o que acelera
-  bastante a convergência com poucas épocas.
-- **Treinamento:** gerenciado internamente pelo `ultralytics` (`model.train(...)`), que já inclui
-  data augmentation, *loss* combinada (caixa + classe + máscara) e *learning rate schedule*.
-- **Métricas de avaliação:** mAP50 e mAP50-95 de máscara (padrão do `ultralytics`, equivalentes
-  ao usado no benchmark COCO), além de precisão e recall.
+## Requisitos
 
-## 3. Pré-requisitos
+- Python 3.10 ou superior;
+- dependências de [`requirements.txt`](requirements.txt);
+- GPU recomendada. O experimento original foi executado no Google Colab com uma Tesla T4.
 
-- Python 3.10+
-- GPU recomendada (o projeto foi desenhado para rodar no **Google Colab gratuito**, mas também
-  funciona em CPU/GPU local — apenas mais lento)
-- Dependências listadas em [`requirements.txt`](requirements.txt)
+## Execução no Google Colab
 
-## 4. Passo a passo de execução
+Abra [`notebooks/treinamento_colab.ipynb`](notebooks/treinamento_colab.ipynb), atualize a variável `REPO_URL`, selecione uma GPU e execute as células em ordem. O notebook cobre todo o fluxo, inclusive a validação visual das anotações, a análise dos casos de baixa confiança e o download dos resultados.
 
-### Opção A — Google Colab (recomendado)
-
-1. Abra [`notebooks/treinamento_colab.ipynb`](notebooks/treinamento_colab.ipynb) no Colab.
-2. Em `Ambiente de execução > Alterar tipo de ambiente de execução`, selecione **GPU**.
-3. Atualize a variável `REPO_URL` na primeira célula com a URL deste repositório.
-4. Execute as células em ordem: instalação → preparação do dataset → treino → avaliação →
-   geração de amostras visuais.
-
-### Opção B — Ambiente local
+## Execução local
 
 ```bash
 git clone <url-deste-repositorio>
-cd segmentacao-pets-tep
+cd segmentacao-pet-tep
 python -m venv .venv
-source .venv/bin/activate   # Windows: .venv\Scripts\activate
+```
+
+Ative o ambiente virtual:
+
+```bash
+# Linux/macOS
+source .venv/bin/activate
+
+# Windows PowerShell
+.venv\Scripts\Activate.ps1
+```
+
+Instale as dependências e execute o pipeline:
+
+```bash
 pip install -r requirements.txt
 
-# 1) Baixa o Oxford-IIIT Pet e converte trimaps -> polígonos YOLO-seg
+# 1. Baixar o dataset e converter os trimaps para polígonos YOLO-seg
 python -m src.prepare_dataset
 
-# 2) Treina o modelo (parte de yolov8n-seg.pt pré-treinado no COCO)
-python -m src.train --epochs 30 --batch 16
+# 2. Conferir visualmente uma amostra das anotações convertidas
+python -m src.validate_annotations --num-samples 6
 
-# 3) Avalia no conjunto de teste
+# 3. Treinar o modelo
+python -m src.train --epochs 30 --imgsz 640 --batch 16 --patience 15
+
+# 4. Avaliar no split oficial de teste
 python -m src.evaluate --weights outputs/runs/train/weights/best.pt --split test
 
-# 4) Gera imagens de exemplo com a máscara prevista sobreposta
-python -m src.predict --weights outputs/runs/train/weights/best.pt --num-samples 6
+# 5. Salvar predições de exemplo
+python -m src.predict --weights outputs/runs/train/weights/best.pt --num-samples 6 --conf 0.5
+
+# 6. Encontrar os seis casos de menor confiança, processando em lotes
+python -m src.analyze_errors --weights outputs/runs/train/weights/best.pt --num-cases 6 --batch-size 16
 ```
 
-Os resultados visuais são salvos em `outputs/samples/`; os pesos e gráficos de treino ficam em
-`outputs/runs/train/`.
+Os pesos, gráficos e logs do Ultralytics ficam em `outputs/runs/train/`. As inspeções de rótulo, predições e análises de erro ficam, respectivamente, em `outputs/annotation_checks/`, `outputs/samples/` e `outputs/error_cases/`.
 
-## 5. Estrutura do repositório
+Use `--help` em qualquer módulo para consultar todos os parâmetros. Por exemplo:
 
+```bash
+python -m src.train --help
 ```
-segmentacao-pets-tep/
+
+## Resultados registrados
+
+O notebook fornecido contém uma execução de 30 épocas em uma Tesla T4. Os valores abaixo foram obtidos nas **552 imagens de validação**; portanto, documentam o experimento original, mas não substituem uma avaliação final no split oficial de teste.
+
+| Saída | Precisão | Recall | mAP50 | mAP50-95 |
+|---|---:|---:|---:|---:|
+| Bounding box | 0,9920 | 0,9909 | 0,9944 | 0,8795 |
+| Máscara | 0,9938 | 0,9928 | 0,9945 | 0,8501 |
+
+O treinamento levou aproximadamente **0,588 hora** (cerca de 35 minutos) no ambiente registrado pelo notebook.
+
+## Estrutura do repositório
+
+```text
+segmentacao-pet-tep/
 ├── README.md
 ├── requirements.txt
 ├── src/
-│   ├── prepare_dataset.py   # Oxford-IIIT Pet -> polígonos no formato YOLO-seg
-│   ├── train.py               # Treina o YOLOv8-seg (via ultralytics)
-│   ├── evaluate.py             # Avalia métricas de máscara no split escolhido
-│   └── predict.py               # Gera amostras visuais com a máscara prevista
+│   ├── prepare_dataset.py       # trimaps para polígonos YOLO-seg
+│   ├── validate_annotations.py  # inspeção visual dos rótulos
+│   ├── train.py                 # treinamento e early stopping
+│   ├── evaluate.py              # métricas de caixas e máscaras
+│   ├── predict.py               # amostras de inferência
+│   └── analyze_errors.py        # casos de menor confiança em lotes
 ├── notebooks/
 │   └── treinamento_colab.ipynb
-└── outputs/
-    ├── runs/          # Gerado pelo ultralytics: pesos, curvas de treino, logs
-    └── samples/        # Imagens de exemplo com a predição sobreposta
+├── artigo/
+│   ├── artigo.tex
+│   └── artigo.pdf
+└── outputs/                     # artefatos gerados durante a execução
 ```
 
-## 6. Resultados
+## Dificuldades e decisões
 
-_A preencher após o treinamento com os números finais de mAP50/mAP50-95 (máscara) obtidos no
-conjunto de teste, e 2-3 imagens de exemplo da pasta `outputs/samples/`._
-
-| Métrica | Valor |
-|---|---|
-| mAP50 (máscara, teste) | — |
-| mAP50-95 (máscara, teste) | — |
-| Precisão / Recall | — |
-
-## 7. Dificuldades encontradas
-
-_A preencher pelo grupo com base na experiência real de desenvolvimento (dados, hardware,
-hiperparâmetros), conforme exigido no roteiro da apresentação._
+- As anotações originais são máscaras densas, enquanto o YOLO-seg exige polígonos. A conversão usa o contorno externo do pet e inclui a classe de borda para fechar a silhueta.
+- A inferência sobre todo o conjunto de avaliação pode consumir muita memória de GPU. A análise de erros divide as imagens em lotes configuráveis por `--batch-size`.
+- O armazenamento do Colab é temporário. A última célula do notebook compacta a pasta `outputs/` para que pesos e gráficos possam ser baixados.
+- O experimento original avaliou o modelo na validação. O pipeline atualizado preserva as 3.669 imagens do split oficial de teste para uma medição final independente.

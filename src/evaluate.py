@@ -23,8 +23,17 @@ def main():
     metrics = model.val(data=args.data, split=args.split)
 
     print(f"\nResultados no split '{args.split}':")
-    for key, value in metrics.results_dict.items():
-        print(f"  {key}: {value:.4f}")
+    print("\nBounding boxes")
+    print(f"  Precisão:  {metrics.box.mp:.4f}")
+    print(f"  Recall:    {metrics.box.mr:.4f}")
+    print(f"  mAP50:     {metrics.box.map50:.4f}")
+    print(f"  mAP50-95:  {metrics.box.map:.4f}")
+
+    print("\nMáscaras de segmentação")
+    print(f"  Precisão:  {metrics.seg.mp:.4f}")
+    print(f"  Recall:    {metrics.seg.mr:.4f}")
+    print(f"  mAP50:     {metrics.seg.map50:.4f}")
+    print(f"  mAP50-95:  {metrics.seg.map:.4f}")
 
 
 if __name__ == "__main__":
